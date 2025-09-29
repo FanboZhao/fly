@@ -13,11 +13,6 @@ training hyperparameters specified in the DMPOConfig data structure.
 """
 
 # ruff: noqa: F821, E722, E402
-import os
-import warnings
-
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-warnings.filterwarnings("ignore")
 
 import os
 os.environ["MUJOCO_GL"] = "osmesa"
