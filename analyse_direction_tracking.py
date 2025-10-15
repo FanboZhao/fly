@@ -7,16 +7,12 @@ from acme import specs, wrappers
 import numpy as np
 
 from dm_control import viewer
-from tqdm import tqdm
 import mediapy
 import matplotlib.pyplot as plt
 from direction_tracking_env import direction_tracking
 
 # Trained checkpoint path
-high_level_ckpt_path = "dmpo_learner/ckpt-133"
-
-# Video step number
-video_step = 2000
+high_level_ckpt_path = "dmpo_learner/ckpt-670"
 
 def wrap_env(env):
     """Wrap task environment with Acme wrappers."""
@@ -29,14 +25,13 @@ low_level_ckpt_path = 'flybody-data/flight-controller-reuse-checkpoints/checkpoi
 
 env = direction_tracking(
         wpg_pattern_path=wpg_pattern_path,
-        bumps_or_trench='bumps',
         joint_filter=0.0002,
     )
 
 env = wrap_env(env)
 
 # Preview the environment
-viewer.launch(env)
+# viewer.launch(env)
 
 environment_spec = specs.make_environment_spec(env)
 
@@ -74,8 +69,6 @@ agent = DMPO(environment_spec=environment_spec,
              observation_network=networks.observation_network,
             )
 
-
-
 timestep = env.reset()
 agent.observe_first(timestep)
 
@@ -86,23 +79,26 @@ step = 1
 """Visualization"""
 frames = []
 timestep = env.reset() 
-for _ in tqdm(range(video_step)):
+print("Begin Simulation!")
+while(1):
     action = agent.select_action(timestep.observation)
     next_timestep = env.step(action)
     reward = next_timestep.reward
     reward_history.append(reward)
     step_history.append(step)
     if next_timestep.last():
-        timestep = env.reset()
+        print("Simulation finished!")
+        break
     else:
         timestep = next_timestep
     step += 1
     cam_id = env.physics.model.name2id('tracking_cam', 'camera')
     frames.append(env.physics.render(camera_id=cam_id, width=640, height=480))
 
-mediapy.write_video('video/direction_tracking_133.mp4', frames, fps=30)
+mediapy.write_video('video/direction_tracking_6709.mp4', frames, fps=30)
 env.close()
 
+"""Visualization"""
 plt.figure(figsize=(10, 5))
 plt.plot(step_history, reward_history, label="Reward per step", alpha=0.6)
 
@@ -116,5 +112,5 @@ plt.ylabel("Reward")
 plt.title("Training Reward over Steps")
 plt.legend()
 plt.grid(True)
-plt.savefig("video/reward_curve_133.png", dpi=300)
+plt.savefig("video/reward_curve_6709.png", dpi=300)
 

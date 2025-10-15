@@ -62,24 +62,25 @@ class DirectionTracking(Flying):
 
         # Initialize the camera
         mjcf_root = self.root_entity.mjcf_model
-        mjcf_root.worldbody.add(
+        self._camera = mjcf_root.worldbody.add(
             'camera',
             name='tracking_cam',
             mode='fixed',
-            pos=[0, 0, 9],
+            pos=[0, 0, 0],
             xyaxes=[1, 0, 0, 0, 1, 0],
             fovy=60
         )
 
         # Add a red ball at the position of goal
-        self._goal = mjcf_root.worldbody.add(
-            'site',
-            name='goal_site',
-            pos=[1, 0, 0],
-            size=[0.05],
-            rgba=[1, 0, 0, 1],
-            type="sphere"
-        )
+        # self._goal = mjcf_root.worldbody.add(
+        #     'site',
+        #     name='goal_site',
+        #     pos=[1, 0, 0],
+        #     size=[0.02],
+        #     rgba=[1, 0, 0, 1],
+        #     type="sphere"
+        # )
+
 
         # Remove all light.
         for light in self._walker.mjcf_model.find_all('light'):
@@ -132,26 +133,22 @@ class DirectionTracking(Flying):
         self._target_zaxis = np.array([np.sin(theta), 0, np.cos(theta)])
 
         mjcf_root = self.root_entity.mjcf_model
-        goal_x = random_state.uniform(-3, 3)
+        goal_x = random_state.uniform(-8, -2)
         goal_y = random_state.uniform(-3, 3)
-        goal_z = 2
+        goal_z = 6
         self._goal_position = np.array([goal_x, goal_y, goal_z])
-        self._goal.set_attributes(pos=self._goal_position.tolist())
-
+        self._camera.set_attributes(pos = self._goal_position.tolist())
+        # goal_z = 5
+        # self._goal_position = np.array([goal_x, goal_y, goal_z])
+        # self._goal.set_attributes(pos=self._goal_position.tolist())
         # Initialize the pillars
         if not self._pillars_initialized:
-            self._num_pillars = 100
+            self._num_pillars = 30
             for i in range(self._num_pillars):
 
-                x = random_state.uniform(-10, 10)
-                y = random_state.uniform(-10, 10)
+                x = random_state.uniform(-8, -2)
+                y = random_state.uniform(-3, 3)
             
-                
-                while abs(x + 4.5) < 1.0 and abs(y) < 1.0:
-                    x = random_state.uniform(-5, 5)
-                    y = random_state.uniform(-5, 5)
-            
-                
                 height = random_state.uniform(1.0, 3.0)
                 radius = random_state.uniform(0.05, 0.15)
             
@@ -233,7 +230,6 @@ class DirectionTracking(Flying):
                                    sigmoid='linear',
                                    margin=0.15,
                                    value_at_margin=0)
-        # print(f"Height : {height}")
 
         velocity, _ = self._walker.get_velocity(physics)
 
@@ -242,18 +238,16 @@ class DirectionTracking(Flying):
                                   bounds=(self._target_speed,
                                           self._target_speed),
                                   sigmoid='linear',
-                                  margin=1.1 * self._target_speed,
+                                  margin=0.2 * self._target_speed,
                                   value_at_margin=0.0)
-        # print(f"speed : {speed}")
 
         # Keep zero egocentric side speed.
         vel = self.observables['walker/velocimeter'](physics)
         side_speed = rewards.tolerance(vel[1],
                                        bounds=(0, 0),
                                        sigmoid='linear',
-                                       margin=10,
+                                       margin=0.2,
                                        value_at_margin=0.0)
-        # print(f"side_speed : {side_speed}")
 
         # World z-axis, to replace root quaternion reward above.
         current_zaxis = self.observables['walker/world_zaxis'](physics)
@@ -261,35 +255,30 @@ class DirectionTracking(Flying):
         world_zaxis = rewards.tolerance(angle,
                                         bounds=(0, 0),
                                         sigmoid='linear',
-                                        margin=np.pi,
+                                        margin=np.pi/2,
                                         value_at_margin=0.0)
-        # print(f"world_zaxis : {world_zaxis}")
 
         # Reward for leg retraction during flight.
         qpos_diff = physics.bind(self._leg_joints).qpos - self._leg_springrefs
-        retract_legs = rewards.tolerance(qpos_diff,
+        qpos_diff_norm = float(np.linalg.norm(qpos_diff))
+        retract_legs = rewards.tolerance(qpos_diff_norm,
                                          bounds=(0, 0),
                                          sigmoid='linear',
                                          margin=4.,
                                          value_at_margin=0.0)
-        # print(f"retract_legs : {retract_legs}")
         
         # Reward for keeping certain distance with the obstacles
         min_pillar_distance = np.inf
 
         for i in range(self._num_pillars):
             pillar_pos = physics.named.data.xpos[f"pillar_{i}"]
-            distance = np.linalg.norm(xpos - pillar_pos)
-            if distance < min_pillar_distance:
-                min_pillar_distance = distance
+            d = np.linalg.norm(xpos[:2] - pillar_pos[:2])  # XY plane
+            min_pillar_distance = min(min_pillar_distance, d)
 
-        safe_distance = 0.2
+        safe_distance = 0.5
         avoidance_penalty = 0.0
         if min_pillar_distance < safe_distance:
-            avoidance_penalty = -0.9 * (safe_distance - min_pillar_distance)
-        
-        # print(f"avoidence : {avoidance_penalty}")
-
+            avoidance_penalty = -1.0 * ((safe_distance - min_pillar_distance) ** 2)
 
         # Reward for the distance to the plume source
         goal_distance = np.linalg.norm(xpos - self._goal_position)
@@ -298,7 +287,6 @@ class DirectionTracking(Flying):
                                            margin=10.0,
                                            sigmoid='linear',
                                            value_at_margin=0.0)
-        # print(f"goal : {goal_proximity}")
         
         # Reward for smaller angle between HD and GD
         angle = self._get_heading_angle(physics)[0]
@@ -306,19 +294,18 @@ class DirectionTracking(Flying):
             angle,
             bounds=(0, 0), 
             sigmoid='linear', 
-            margin=np.pi,
+            margin=np.pi/2,
             value_at_margin=0.0
         )
-        # print(f"head : {heading_reward}")
 
         weights = {
-            'height': 1.0,
-            'speed': 0.2,
+            'height': 0.8,
+            'speed': 0.3,
             'side_speed': 0.3,
             'world_zaxis': 0.1,
             'avoidance': 1.0,
-            'goal': 1.5,
-            'heading': 0.5,
+            'goal': 3.0,
+            'heading': 0.7,
             'retract_legs': 0.2,
         }
     
@@ -329,15 +316,16 @@ class DirectionTracking(Flying):
             weights['world_zaxis'] * world_zaxis +
             weights['avoidance'] * avoidance_penalty +
             weights['goal'] * goal_proximity +
-            weights['heading'] * heading_reward 
-            # weights['retract_legs'] * retract_legs
+            weights['heading'] * heading_reward +
+            weights['retract_legs'] * retract_legs
         )
 
         # Normalization
         normalizer = sum(abs(w) for w in weights.values())
-        reward_normalized = (reward / normalizer + 1) / 2
+        reward_clipped = np.clip(reward, -normalizer, normalizer)
+        reward_normalized = (reward_clipped / normalizer + 1.0) / 2.0
         
-        # print(f"Reward: {reward_normalized:.4f}")
+        print(f"Reward: {reward_normalized:.4f}")
         return reward_normalized
 
 
@@ -363,7 +351,7 @@ class DirectionTracking(Flying):
 
         distance = np.linalg.norm(fly_pos_xy - goal_pos_xy)
 
-        if distance < 0.1:
+        if distance < 0.2:
             return True
 
         if self._floor_contacts_fatal:
