@@ -46,11 +46,11 @@ from flybody.agents.network_factory import policy_loss_module_dmpo
 from flybody.agents.losses_mpo import PenalizationCostRealActions
 from flybody.fly_envs import flight_imitation
 
-from direction_tracking_env import direction_tracking
+from direction_to_control.train.env import direction_tracking
 from flybody.agents.network_factory import make_network_factory_dmpo
 from flybody.agents.network_factory_vis import make_vis_network_factory_two_level_controller
 
-from ray_distributed_dmpo import (
+from direction_to_control.train.ray_distributed_dmpo import (
     DMPOConfig,
     ReplayServer,
     Learner,

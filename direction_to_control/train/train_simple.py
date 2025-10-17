@@ -14,7 +14,7 @@ import tensorflow as tf
 from tqdm import tqdm
 import mediapy
 import matplotlib.pyplot as plt
-from direction_tracking_env import direction_tracking
+from direction_to_control.train.env import direction_tracking
 
 # The dictionary of stored checkpoints
 ckpt_dir = "checkpoints/plume_tracking"

@@ -4,7 +4,7 @@ from dm_control import composer
 
 from flybody.fruitfly import fruitfly
 
-from direction_tracking_task import DirectionTracking
+from direction_to_control.train.task import DirectionTracking
 
 from flybody.tasks.arenas.hills import SineBumps, SineTrench
 from flybody.tasks.pattern_generators import WingBeatPatternGenerator
